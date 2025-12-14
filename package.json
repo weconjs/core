@@ -1,0 +1,64 @@
+{
+  "name": "@weconjs/core",
+  "version": "0.1.0",
+  "description": "Wecon Framework Core - defineConfig, defineModule, and runtime utilities",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "glob": "^10.3.10",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.10.0",
+    "socket.io": "^4.8.1",
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.15"
+  },
+  "peerDependencies": {
+    "express": "^4.18.0",
+    "mongoose": "^8.0.0",
+    "socket.io": "^4.6.0"
+  },
+  "peerDependenciesMeta": {
+    "socket.io": {
+      "optional": true
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "wecon",
+    "framework",
+    "express",
+    "typescript",
+    "modular"
+  ],
+  "author": "kemora13conf",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/weconjs/core.git"
+  },
+  "homepage": "https://github.com/weconjs/core#readme",
+  "bugs": {
+    "url": "https://github.com/weconjs/core/issues"
+  }
+}
