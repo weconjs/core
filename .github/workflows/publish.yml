@@ -5,48 +5,49 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: read
-  id-token: write
-
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
           registry-url: 'https://registry.npmjs.org'
+          cache: yarn
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
+      - name: Build package
+        run: yarn build
+
       - name: Run tests
         run: yarn test
 
-      - name: Build
-        run: yarn build
-
       - name: Determine npm tag
-        id: npm_tag
+        id: npm-tag
         run: |
-          REF_NAME="${{ github.ref_name }}"
-          if [[ "$REF_NAME" == *"-beta"* ]]; then
+          if [[ "${{ github.ref_name }}" == *"beta"* ]]; then
             echo "tag=beta" >> $GITHUB_OUTPUT
-          elif [[ "$REF_NAME" == *"-alpha"* ]]; then
+          elif [[ "${{ github.ref_name }}" == *"alpha"* ]]; then
             echo "tag=alpha" >> $GITHUB_OUTPUT
-          elif [[ "$REF_NAME" == *"-rc"* ]]; then
+          elif [[ "${{ github.ref_name }}" == *"rc"* ]]; then
             echo "tag=rc" >> $GITHUB_OUTPUT
           else
             echo "tag=latest" >> $GITHUB_OUTPUT
           fi
 
       - name: Publish to npm
-        run: npm publish --access public --tag ${{ steps.npm_tag.outputs.tag }}
+        run: npm publish --access public --tag ${{ steps.npm-tag.outputs.tag }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
-
