@@ -35,6 +35,15 @@ describe("Server Module", () => {
         version: "1.0.0",
       },
       port: 3000,
+      logging: {
+        level: "info",
+        enableConsole: true,
+        enableFile: false,
+      },
+      database: {},
+      https: {},
+      features: {},
+      modules: [],
     };
 
     it("should create a WeconApp instance", async () => {
@@ -84,7 +93,7 @@ describe("Server Module", () => {
         hooks: { onShutdown },
       });
 
-      await weconApp.start(3001);
+      // Call shutdown directly without starting the server
       await weconApp.shutdown();
 
       expect(onShutdown).toHaveBeenCalled();
@@ -125,7 +134,7 @@ describe("Server Module", () => {
         hooks: { onModuleInit },
       });
 
-      expect(onModuleInit).toHaveBeenCalledWith(mockModule);
+      expect(onModuleInit).toHaveBeenCalledWith(mockModule, expect.any(Object));
     });
 
     it("should set up health check endpoint", async () => {

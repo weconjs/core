@@ -3,10 +3,63 @@
  *
  * Creates and configures the Express application with all framework features.
  * This is the main entry point for the Wecon framework.
+ *
+ * @example
+ * ```typescript
+ * import { createWecon, loadConfig } from '@weconjs/core';
+ *
+ * const config = await loadConfig('./wecon.config.ts');
+ *
+ * const app = await createWecon({
+ *   config,
+ *   modules: [authModule, usersModule],
+ *   database: { enabled: true },
+ *   plugins: { fieldShield: true },
+ * });
+ *
+ * await app.start();
+ * ```
  */
 
-import type { Application, Request, Response, NextFunction } from "express";
-import type { WeconConfig, ResolvedConfig, WeconModule } from "../types.js";
+import http from "http";
+import https from "https";
+import fs from "fs";
+import path from "path";
+import type { Application, Request, Response, NextFunction, RequestHandler } from "express";
+import type { ResolvedConfig, WeconModule, WeconLogger, WeconContext } from "../types.js";
+import { createWinstonLogger, createConsoleLogger } from "../logger/index.js";
+import { createDatabaseConnection, buildUriFromConfig, type DatabaseConnection } from "../database/index.js";
+import { initI18n } from "../i18n/index.js";
+import { createContext } from "../context.js";
+
+/**
+ * API Error format
+ */
+export interface ApiError {
+  code: string;
+  message: string;
+  field?: string;
+  params?: Record<string, unknown>;
+}
+
+/**
+ * Standard API Response format
+ */
+export interface ApiResponse<T = unknown> {
+  success: boolean;
+  data: T | null;
+  errors: ApiError[] | null;
+  meta: Record<string, unknown> | null;
+}
+
+/**
+ * Response options for res.respond()
+ */
+export interface RespondOptions<T = unknown> {
+  data?: T;
+  errors?: ApiError[];
+  meta?: Record<string, unknown>;
+}
 
 /**
  * Options for creating a Wecon application
@@ -23,28 +76,106 @@ export interface CreateWeconOptions {
   modules: WeconModule[];
 
   /**
-   * Custom middleware to apply
+   * The @weconjs/lib Wecon instance (for route handling)
+   * If provided, wecon.handler() is mounted automatically
    */
-  middleware?: Array<(req: Request, res: Response, next: NextFunction) => void>;
+  wecon?: { handler: () => RequestHandler };
+
+  /**
+   * Custom middleware to apply before routes
+   */
+  middleware?: RequestHandler[];
+
+  /**
+   * Database options
+   */
+  database?: {
+    /**
+     * Enable database connection
+     */
+    enabled?: boolean;
+
+    /**
+     * Direct MongoDB URI (overrides config)
+     */
+    uri?: string;
+
+    /**
+     * Mongoose plugins to register
+     */
+    plugins?: Array<{
+      plugin: (schema: unknown, options?: unknown) => void;
+      options?: unknown;
+    }>;
+  };
+
+  /**
+   * Plugin options
+   */
+  plugins?: {
+    /**
+     * Enable FieldShield integration
+     */
+    fieldShield?: boolean | { strict?: boolean; debug?: boolean };
+  };
+
+  /**
+   * i18n options
+   */
+  i18n?: {
+    /**
+     * Enable i18n middleware
+     * @default true if config.features.i18n.enabled
+     */
+    enabled?: boolean;
+
+    /**
+     * Path to modules directory for translation discovery
+     */
+    modulesDir?: string;
+  };
+
+  /**
+   * Logger options
+   */
+  logger?: {
+    /**
+     * Use Winston logger (requires winston package)
+     * @default true
+     */
+    useWinston?: boolean;
+
+    /**
+     * Enable file logging
+     * @default false
+     */
+    enableFile?: boolean;
+
+    /**
+     * Log directory
+     * @default 'logs'
+     */
+    logDir?: string;
+  };
 
   /**
    * Lifecycle hooks
    */
   hooks?: {
     /**
-     * Called before server starts
+     * Called before server starts (after middleware setup)
      */
-    onBoot?: () => Promise<void> | void;
+    onBoot?: (ctx: WeconContext) => Promise<void> | void;
 
     /**
      * Called when server is shutting down
      */
-    onShutdown?: () => Promise<void> | void;
+    onShutdown?: (ctx: WeconContext) => Promise<void> | void;
 
     /**
      * Called after each module is initialized
      */
-    onModuleInit?: (module: WeconModule) => Promise<void> | void;
+    onModuleInit?: (module: WeconModule, ctx: WeconContext) => Promise<void> | void;
   };
 }
 
@@ -58,14 +189,159 @@ export interface WeconApp {
   app: Application;
 
   /**
+   * The application context
+   */
+  ctx: WeconContext;
+
+  /**
+   * Database connection (if enabled)
+   */
+  db?: DatabaseConnection;
+
+  /**
    * Start the server
    */
-  start: (port?: number) => Promise<void>;
+  start: (port?: number) => Promise<http.Server | https.Server>;
 
   /**
    * Gracefully shutdown the server
    */
   shutdown: () => Promise<void>;
+}
+
+/**
+ * Install respond helper on Express Response prototype
+ */
+function installRespond(): void {
+  // Dynamic import to get express.response
+  import("express").then((express) => {
+    const response = express.default.response as Response & {
+      respond?: <T>(options?: RespondOptions<T>) => Response;
+    };
+
+    // Only install if response prototype exists (not in mock environments)
+    if (response && !response.respond) {
+      response.respond = function <T = unknown>(
+        this: Response,
+        options: RespondOptions<T> = {}
+      ): Response {
+        const { data, errors, meta } = options;
+        const hasErrors = errors && errors.length > 0;
+
+        const apiResponse: ApiResponse<T> = {
+          success: !hasErrors,
+          data: hasErrors ? null : ((data ?? null) as T | null),
+          errors: hasErrors ? errors : null,
+          meta: meta ?? null,
+        };
+
+        return this.json(apiResponse);
+      };
+    }
+  }).catch(() => {
+    // Express not available yet, will be installed later
+  });
+}
+
+/**
+ * Create HTTPS server if SSL certificates are available
+ */
+function createHttpsServer(
+  app: Application,
+  config: ResolvedConfig,
+  logger: WeconLogger
+): https.Server | null {
+  try {
+    const httpsConfig = config.https;
+
+    if (!httpsConfig?.enabled) {
+      return null;
+    }
+
+    const keyPath = path.resolve(httpsConfig.keyPath ?? "");
+    const certPath = path.resolve(httpsConfig.certPath ?? "");
+
+    // Check if certificate files exist
+    if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
+      logger.warn("SSL certificates not found, falling back to HTTP", {
+        keyPath,
+        certPath,
+      });
+      return null;
+    }
+
+    const httpsOptions: https.ServerOptions = {
+      key: fs.readFileSync(keyPath),
+      cert: fs.readFileSync(certPath),
+    };
+
+    return https.createServer(httpsOptions, app);
+  } catch (error) {
+    logger.warn("Error creating HTTPS server, falling back to HTTP", {
+      error: (error as Error).message,
+    });
+    return null;
+  }
+}
+
+/**
+ * Create graceful shutdown handler
+ */
+function createGracefulShutdown(
+  server: http.Server | https.Server,
+  ctx: WeconContext,
+  db: DatabaseConnection | undefined,
+  onShutdown?: (ctx: WeconContext) => Promise<void> | void
+) {
+  let isShuttingDown = false;
+
+  return async (signal: string): Promise<void> => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
+    ctx.logger.info(`Received ${signal}. Starting graceful shutdown...`);
+
+    // Call shutdown hook
+    if (onShutdown) {
+      try {
+        await onShutdown(ctx);
+      } catch (err) {
+        ctx.logger.error("Error in onShutdown hook", {
+          error: (err as Error).message,
+        });
+      }
+    }
+
+    // Close database connection
+    if (db) {
+      try {
+        await db.disconnect();
+      } catch (err) {
+        ctx.logger.error("Error closing database", {
+          error: (err as Error).message,
+        });
+      }
+    }
+
+    // Close server
+    server.close((err) => {
+      if (err) {
+        ctx.logger.error("Error during server shutdown", {
+          error: err.message,
+        });
+        process.exit(1);
+      }
+
+      ctx.logger.info("Server closed successfully");
+      process.exit(0);
+    });
+
+    // Force close after 10 seconds
+    setTimeout(() => {
+      ctx.logger.error("Forced shutdown after timeout");
+      process.exit(1);
+    }, 10000);
+  };
 }
 
 /**
@@ -75,21 +351,103 @@ export interface WeconApp {
  * - Database connection
  * - i18n initialization
  * - Module loading
- * - Error handling
+ * - Logging
+ * - HTTPS support
+ * - Graceful shutdown
  *
  * @param options - Configuration options
  * @returns Wecon application instance
  */
 export async function createWecon(options: CreateWeconOptions): Promise<WeconApp> {
-  // Dynamic import to avoid bundling issues
-  const express = (await import("express")).default;
+  const { config, modules, wecon, middleware = [], hooks = {} } = options;
 
+  // Install respond helper (wrapped in try-catch as express may not be available yet)
+  try {
+    installRespond();
+  } catch {
+    // Will be installed when express is imported
+  }
+
+  // Create logger with defensive fallbacks
+  let logger: WeconLogger;
+  const loggerOptions = {
+    level: config.logging?.level ?? "info",
+    appName: config.app?.name ?? "wecon",
+    enableFile: options.logger?.enableFile ?? config.logging?.enableFile ?? false,
+    logDir: options.logger?.logDir ?? "logs",
+  };
+
+  if (options.logger?.useWinston !== false) {
+    try {
+      logger = await createWinstonLogger(loggerOptions);
+    } catch {
+      logger = createConsoleLogger(loggerOptions);
+    }
+  } else {
+    logger = createConsoleLogger(loggerOptions);
+  }
+
+  // Dynamic import Express
+  const express = (await import("express")).default;
   const app = express();
-  const { config, modules, middleware = [], hooks = {} } = options;
+
+  // Create context (will update with app/io later)
+  const ctx = createContext({
+    config,
+    app,
+    logger,
+  });
+
+  // Connect database if enabled
+  let db: DatabaseConnection | undefined;
+  const shouldConnectDb = options.database?.enabled ?? (config.database?.mongoose?.host !== undefined);
+
+  if (shouldConnectDb) {
+    try {
+      const uri = options.database?.uri ?? buildUriFromConfig(config.database);
+      const fieldShieldConfig = options.plugins?.fieldShield;
+
+      db = await createDatabaseConnection({
+        uri,
+        plugins: options.database?.plugins,
+        fieldShield: fieldShieldConfig
+          ? {
+              enabled: true,
+              strict: typeof fieldShieldConfig === "object" ? fieldShieldConfig.strict : true,
+              debug: typeof fieldShieldConfig === "object" ? fieldShieldConfig.debug : false,
+            }
+          : undefined,
+        debug: config.database.debug,
+      });
+
+      await db.connect();
+    } catch (err) {
+      logger.error("Failed to connect to database", {
+        error: (err as Error).message,
+      });
+      throw err;
+    }
+  }
 
   // Apply default middleware
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+
+  // Initialize i18n if enabled
+  const i18nEnabled = options.i18n?.enabled ?? config.features?.i18n?.enabled;
+  if (i18nEnabled) {
+    try {
+      const modulesDir = options.i18n?.modulesDir ?? "./src/modules";
+      const defaultLocale = config.features?.i18n?.defaultLocale ?? "en";
+      const i18nMiddleware = await initI18n(modulesDir, defaultLocale);
+      app.use(i18nMiddleware);
+      logger.debug("i18n initialized");
+    } catch (err) {
+      logger.warn("Failed to initialize i18n", {
+        error: (err as Error).message,
+      });
+    }
+  }
 
   // Apply custom middleware
   for (const mw of middleware) {
@@ -98,53 +456,120 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
 
   // Health check endpoint
   app.get("/health", (_req, res) => {
-    res.json({
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      environment: config.mode,
-      app: config.app.name,
-      version: config.app.version,
-    });
+    const response = (res as Response & { respond?: (opts: RespondOptions) => Response }).respond;
+    if (response) {
+      response.call(res, {
+        data: {
+          status: "ok",
+          timestamp: new Date().toISOString(),
+          environment: config.mode,
+          app: config.app.name,
+          version: config.app.version,
+        },
+      });
+    } else {
+      res.json({
+        success: true,
+        data: {
+          status: "ok",
+          timestamp: new Date().toISOString(),
+          environment: config.mode,
+          app: config.app.name,
+          version: config.app.version,
+        },
+      });
+    }
   });
+
+  // Mount Wecon router if provided
+  if (wecon) {
+    app.use(wecon.handler());
+    logger.debug("Wecon routes mounted");
+  }
 
   // Initialize modules
   for (const mod of modules) {
     if (mod.onInit) {
-      await mod.onInit({} as any); // Context will be passed properly
+      await mod.onInit(ctx);
     }
     if (hooks.onModuleInit) {
-      await hooks.onModuleInit(mod);
+      await hooks.onModuleInit(mod, ctx);
     }
+    logger.debug(`Module initialized: ${mod.name}`);
   }
 
   // Global error handler
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error("[Wecon] Error:", err.message);
-    res.status(500).json({
-      success: false,
-      message: err.message || "Internal Server Error",
+    logger.error("Unhandled error", {
+      error: err.message,
+      stack: err.stack,
     });
+
+    const response = (res as Response & { respond?: (opts: RespondOptions) => Response }).respond;
+    if (response) {
+      res.status(500);
+      response.call(res, {
+        errors: [{ code: "INTERNAL_ERROR", message: err.message || "Internal Server Error" }],
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        errors: [{ code: "INTERNAL_ERROR", message: err.message || "Internal Server Error" }],
+      });
+    }
   });
 
-  let server: any = null;
+  let server: http.Server | https.Server | null = null;
 
   return {
     app,
+    ctx,
+    db,
 
     async start(port?: number) {
       const serverPort = port ?? config.port ?? 3000;
 
       // Call onBoot hook
       if (hooks.onBoot) {
-        await hooks.onBoot();
+        await hooks.onBoot(ctx);
       }
 
-      return new Promise<void>((resolve) => {
-        server = app.listen(serverPort, () => {
-          console.log(`\n[Wecon] ${config.app.name} v${config.app.version}`);
-          console.log(`[Wecon] Running on http://localhost:${serverPort}`);
-          console.log(`[Wecon] Mode: ${config.mode}\n`);
-          resolve();
+      // Try HTTPS first
+      const httpsServer = createHttpsServer(app, config, logger);
+
+      if (httpsServer) {
+        server = httpsServer;
+        const httpsPort = config.https.port ?? 443;
+
+        return new Promise<https.Server>((resolve) => {
+          server!.listen(httpsPort, () => {
+            logger.info(`${config.app.name} v${config.app.version} running`, {
+              protocol: "https",
+              port: httpsPort,
+              mode: config.mode,
+            });
+            resolve(server as https.Server);
+          });
+        });
+      }
+
+      // Fall back to HTTP
+      server = http.createServer(app);
+
+      // Setup graceful shutdown
+      const gracefulShutdown = createGracefulShutdown(server, ctx, db, hooks.onShutdown);
+      process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+      process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+      process.on("SIGUSR2", () => gracefulShutdown("SIGUSR2"));
+
+      return new Promise<http.Server>((resolve) => {
+        server!.listen(serverPort, () => {
+          logger.info(`${config.app.name} v${config.app.version} running`, {
+            protocol: "http",
+            port: serverPort,
+            mode: config.mode,
+          });
+          resolve(server as http.Server);
         });
       });
     },
@@ -152,21 +577,26 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
     async shutdown() {
       // Call onShutdown hook
       if (hooks.onShutdown) {
-        await hooks.onShutdown();
+        await hooks.onShutdown(ctx);
+      }
+
+      // Close database
+      if (db) {
+        await db.disconnect();
       }
 
       // Destroy modules
       for (const mod of modules) {
         if (mod.onDestroy) {
-          await mod.onDestroy({} as any);
+          await mod.onDestroy(ctx);
         }
       }
 
       // Close server
       if (server) {
         return new Promise<void>((resolve) => {
-          server.close(() => {
-            console.log("[Wecon] Server shut down gracefully");
+          server!.close(() => {
+            logger.info("Server shut down gracefully");
             resolve();
           });
         });

@@ -1,5 +1,5 @@
 /**
- * @wecon/core
+ * @weconjs/core
  *
  * Core package for the Wecon framework.
  * Provides configuration, module system, and runtime utilities.
@@ -20,17 +20,38 @@ export {
 // Context
 export { createContext, createLogger } from "./context.js";
 
+// Logger
+export {
+  createWinstonLogger,
+  createConsoleLogger,
+} from "./logger/index.js";
+export type { LoggerOptions, WinstonBasedLogger } from "./logger/index.js";
+
 // Server
 export { createWecon } from "./server/index.js";
-export type { CreateWeconOptions, WeconApp } from "./server/index.js";
+export type {
+  CreateWeconOptions,
+  WeconApp,
+  ApiError,
+  ApiResponse,
+  RespondOptions,
+} from "./server/index.js";
 
 // i18n
 export { loadI18nResources, createI18nMiddleware, initI18n } from "./i18n/index.js";
 export type { I18nResources } from "./i18n/index.js";
 
 // Database
-export { createDatabaseConnection } from "./database/index.js";
-export type { DatabaseOptions, DatabaseConnection } from "./database/index.js";
+export {
+  createDatabaseConnection,
+  buildMongoUri,
+  buildUriFromConfig,
+} from "./database/index.js";
+export type {
+  DatabaseOptions,
+  DatabaseConnection,
+  MongoUriParts,
+} from "./database/index.js";
 
 // Socket.IO
 export {
@@ -87,3 +108,4 @@ export type {
   RouteHandler,
   WeconMiddleware,
 } from "./types.js";
+
