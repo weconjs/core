@@ -2,6 +2,7 @@
  * @wecon/core - DevTools Module
  *
  * REST API for inspecting and managing modules, config, i18n, and routes.
+ * Includes a built-in web UI served at /ui.
  * Disabled in production by default.
  *
  * @example
@@ -17,7 +18,10 @@
  * ```
  */
 
-import type { Router } from "express";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
+import type { Router, Request, Response } from "express";
 import type { WeconContext, WeconModule } from "../types.js";
 import type Wecon from "../routing/Wecon.js";
 import type { DevToolsOptions, DevToolsContext } from "./types.js";
@@ -28,6 +32,24 @@ import { listNamespaces, getTranslations, updateTranslations } from "./controlle
 import { listRoutes } from "./controllers/routes.controller.js";
 
 export type { DevToolsOptions } from "./types.js";
+
+/**
+ * Resolve the path to the built-in client UI directory.
+ * Falls back gracefully if the client build is not present.
+ */
+function resolveClientDir(): string | null {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const clientDir = path.resolve(__dirname, "client");
+    if (fs.existsSync(clientDir) && fs.existsSync(path.join(clientDir, "index.html"))) {
+      return clientDir;
+    }
+  } catch {
+    // fallback for CJS environments
+  }
+  return null;
+}
 
 /**
  * Create the devtools Express Router
@@ -60,29 +82,33 @@ export function createDevToolsRouter(
     router.use(createDevToolsAuth(options.auth.token));
   }
 
-  // -- Module endpoints --
+  // -- API endpoints --
   router.get("/modules", listModules(dtCtx));
   router.get("/modules/:name", getModule(dtCtx));
-
-  // -- Config endpoints --
   router.get("/config", getConfig(dtCtx));
   router.put("/config", updateConfig(dtCtx));
   router.get("/config/:moduleName", getModuleConfig(dtCtx));
   router.put("/config/:moduleName", updateModuleConfig(dtCtx));
-
-  // -- i18n endpoints --
   router.get("/i18n", listNamespaces(dtCtx, modulesDir));
   router.get("/i18n/:namespace/:lang", getTranslations(dtCtx, modulesDir));
   router.put("/i18n/:namespace/:lang", updateTranslations(dtCtx, modulesDir));
-
-  // -- Routes endpoint --
   router.get("/routes", listRoutes(dtCtx, wecon));
 
-  ctx.logger.info("DevTools mounted", {
-    prefix: options.prefix ?? "/dev/devtools",
-    auth: !!options.auth?.token,
-    endpoints: 10,
-  });
+  // -- Built-in Web UI --
+  const clientDir = resolveClientDir();
+  if (clientDir) {
+    // Serve static assets
+    router.use("/ui", express.static(clientDir));
+
+    // SPA fallback: serve index.html for any /ui sub-routes that aren't static files
+    router.use("/ui", (_req: Request, res: Response) => {
+      res.sendFile(path.join(clientDir, "index.html"));
+    });
+
+    // DevTools with UI - shown in startup banner
+  } else {
+    // DevTools API only - shown in startup banner
+  }
 
   return router;
 }

@@ -1,6 +1,6 @@
 {
   "name": "@weconjs/core",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Wecon Framework Core - defineConfig, defineModule, and runtime utilities",
   "type": "module",
   "main": "./dist/index.js",
@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r src/devtools/client dist/devtools/client",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "test": "vitest run",

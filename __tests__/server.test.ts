@@ -16,13 +16,33 @@ vi.mock("express", () => {
       return { close: vi.fn((cb) => cb?.()) };
     }),
   };
-  
+
   const express = vi.fn(() => mockApp);
   (express as any).json = vi.fn(() => vi.fn());
   (express as any).urlencoded = vi.fn(() => vi.fn());
-  
+
   return { default: express };
 });
+
+// Mock http.createServer so start() doesn't bind a real port
+vi.mock("http", async () => {
+  const actual = await vi.importActual<typeof import("http")>("http");
+  return {
+    ...actual,
+    default: {
+      ...actual,
+      createServer: vi.fn(() => ({
+        listen: vi.fn((_port: number, cb: () => void) => cb?.()),
+        close: vi.fn((cb: () => void) => cb?.()),
+      })),
+    },
+  };
+});
+
+// Mock the banner so it doesn't try to import chalk in tests
+vi.mock("../src/server/banner.js", () => ({
+  printBanner: vi.fn(),
+}));
 
 import { createWecon } from "../src/server/index.js";
 

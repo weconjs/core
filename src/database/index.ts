@@ -228,7 +228,7 @@ export async function createDatabaseConnection(
             strict: options.fieldShield.strict ?? true,
             debug: options.fieldShield.debug ?? false,
           });
-          console.log("[Wecon] FieldShield installed");
+          // Silently installed - shown in startup banner
         } catch {
           console.warn(
             "[Wecon] @weconjs/mongoose-field-shield not installed. Skipping FieldShield setup."
@@ -257,7 +257,6 @@ export async function createDatabaseConnection(
         try {
           await mongoose.default.connect(uri, options.options as any);
           connected = true;
-          console.log("[Wecon] Database connected successfully");
           return;
         } catch (err) {
           lastError = err as Error;

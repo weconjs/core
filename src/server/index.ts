@@ -35,6 +35,7 @@ import { initI18n } from "../i18n/index.js";
 import { createContext } from "../context.js";
 import { resolveAllModuleDeps } from "../module/index.js";
 import { createDevToolsRouter, type DevToolsOptions } from "../devtools/index.js";
+import { printBanner } from "./banner.js";
 
 /**
  * API Error format
@@ -446,7 +447,7 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
       }
 
       config.moduleConfigs[mod.name] = result.data;
-      logger.debug(`Module config validated: ${mod.name}`);
+      // Config validated - shown in startup banner
     }
   }
 
@@ -501,7 +502,6 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
       const defaultLocale = config.features?.i18n?.defaultLocale ?? "en";
       const i18nMiddleware = await initI18n(modulesDir, defaultLocale);
       app.use(i18nMiddleware);
-      logger.debug("i18n initialized");
     } catch (err) {
       logger.warn("Failed to initialize i18n", {
         error: (err as Error).message,
@@ -551,7 +551,6 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
   // Mount Wecon router if provided
   if (wecon) {
     app.use(wecon.handler());
-    logger.debug("Wecon routes mounted");
   }
 
   // Check and install module dependencies
@@ -576,7 +575,7 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
     if (hooks.onModuleInit) {
       await hooks.onModuleInit(mod, ctx);
     }
-    logger.debug(`Module initialized: ${mod.name}`);
+    // Module initialized - shown in startup banner
   }
 
   // Global error handler
@@ -599,6 +598,20 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
       });
     }
   });
+
+  // Count routes for banner
+  let routeCount: number | undefined;
+  if (wecon) {
+    try {
+      const allRoutes = wecon.getRoutes?.();
+      if (allRoutes) routeCount = allRoutes.length;
+    } catch {
+      // getRoutes may not exist or fail
+    }
+  }
+
+  const devtoolsEnabled = !!devToolsRouter;
+  const devtoolsPrefix = options.devtools?.prefix ?? "/dev/devtools";
 
   let server: http.Server | https.Server | null = null;
 
@@ -623,11 +636,17 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
         const httpsPort = config.https.port ?? 443;
 
         return new Promise<https.Server>((resolve) => {
-          server!.listen(httpsPort, () => {
-            logger.info(`${config.app.name} v${config.app.version} running`, {
-              protocol: "https",
+          server!.listen(httpsPort, async () => {
+            await printBanner({
+              config,
+              modules,
               port: httpsPort,
-              mode: config.mode,
+              protocol: "https",
+              dbConnected: !!db,
+              i18nEnabled: !!i18nEnabled,
+              devtoolsEnabled,
+              devtoolsPrefix,
+              routeCount,
             });
             resolve(server as https.Server);
           });
@@ -644,11 +663,17 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
       process.on("SIGUSR2", () => gracefulShutdown("SIGUSR2"));
 
       return new Promise<http.Server>((resolve) => {
-        server!.listen(serverPort, () => {
-          logger.info(`${config.app.name} v${config.app.version} running`, {
-            protocol: "http",
+        server!.listen(serverPort, async () => {
+          await printBanner({
+            config,
+            modules,
             port: serverPort,
-            mode: config.mode,
+            protocol: "http",
+            dbConnected: !!db,
+            i18nEnabled: !!i18nEnabled,
+            devtoolsEnabled,
+            devtoolsPrefix,
+            routeCount,
           });
           resolve(server as http.Server);
         });
