@@ -177,6 +177,7 @@ export function resolveConfig(
     https: { ...DEFAULT_CONFIG.https },
     features: { ...DEFAULT_CONFIG.features },
     modules: [...(config.modules ?? [])],
+    moduleConfigs: { ...(config.moduleConfigs ?? {}) },
   };
 
   // Apply mode-specific configuration if defined

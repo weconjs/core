@@ -26,11 +26,15 @@ import https from "https";
 import fs from "fs";
 import path from "path";
 import type { Application, Request, Response, NextFunction, RequestHandler } from "express";
+import type { z } from "zod";
 import type { ResolvedConfig, WeconModule, WeconLogger, WeconContext } from "../types.js";
+import type Wecon from "../routing/Wecon.js";
 import { createWinstonLogger, createConsoleLogger } from "../logger/index.js";
 import { createDatabaseConnection, buildUriFromConfig, type DatabaseConnection } from "../database/index.js";
 import { initI18n } from "../i18n/index.js";
 import { createContext } from "../context.js";
+import { resolveAllModuleDeps } from "../module/index.js";
+import { createDevToolsRouter, type DevToolsOptions } from "../devtools/index.js";
 
 /**
  * API Error format
@@ -76,10 +80,10 @@ export interface CreateWeconOptions {
   modules: WeconModule[];
 
   /**
-   * The @weconjs/lib Wecon instance (for route handling)
-   * If provided, wecon.handler() is mounted automatically
+   * The Wecon routing instance (for route handling).
+   * If provided, wecon.handler() is mounted automatically.
    */
-  wecon?: { handler: () => RequestHandler };
+  wecon?: Wecon;
 
   /**
    * Custom middleware to apply before routes
@@ -157,6 +161,34 @@ export interface CreateWeconOptions {
      */
     logDir?: string;
   };
+
+  /**
+   * Module dependency options
+   */
+  moduleDeps?: {
+    /**
+     * Auto-install missing module dependencies
+     * @default true in development, false in production
+     */
+    autoInstall?: boolean;
+
+    /**
+     * Root directory for resolving module paths and node_modules
+     * @default process.cwd()
+     */
+    rootDir?: string;
+
+    /**
+     * Module paths (keyed by module name) for dependency checking.
+     * If not provided, dependency checking is skipped.
+     */
+    paths?: Record<string, string>;
+  };
+
+  /**
+   * DevTools REST API options
+   */
+  devtools?: DevToolsOptions;
 
   /**
    * Lifecycle hooks
@@ -391,11 +423,39 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
   const express = (await import("express")).default;
   const app = express();
 
-  // Create context (will update with app/io later)
+  // Validate and inject module configs
+  const moduleSchemas = new Map<string, z.ZodType>();
+
+  if (!config.moduleConfigs) {
+    config.moduleConfigs = {};
+  }
+
+  for (const mod of modules) {
+    if (mod.config?.schema) {
+      moduleSchemas.set(mod.name, mod.config.schema);
+
+      // Merge defaults with user-provided config, then validate
+      const userConfig = config.moduleConfigs[mod.name] ?? {};
+      const merged = { ...(mod.config.defaults ?? {}), ...(userConfig as object) };
+      const result = mod.config.schema.safeParse(merged);
+
+      if (!result.success) {
+        throw new Error(
+          `[Wecon] Invalid config for module "${mod.name}": ${result.error.message}`
+        );
+      }
+
+      config.moduleConfigs[mod.name] = result.data;
+      logger.debug(`Module config validated: ${mod.name}`);
+    }
+  }
+
+  // Create context with module schemas for runtime validation
   const ctx = createContext({
     config,
     app,
     logger,
+    moduleSchemas,
   });
 
   // Connect database if enabled
@@ -481,10 +541,31 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
     }
   });
 
+  // Mount DevTools before Wecon RBAC routes (bypasses role checks)
+  const devToolsRouter = createDevToolsRouter(ctx, modules, options.devtools, wecon);
+  if (devToolsRouter) {
+    const prefix = options.devtools?.prefix ?? "/dev/devtools";
+    app.use(prefix, devToolsRouter);
+  }
+
   // Mount Wecon router if provided
   if (wecon) {
     app.use(wecon.handler());
     logger.debug("Wecon routes mounted");
+  }
+
+  // Check and install module dependencies
+  if (options.moduleDeps?.paths) {
+    const rootDir = options.moduleDeps.rootDir ?? process.cwd();
+    const isDev = config.mode !== "production";
+    const autoInstall = options.moduleDeps.autoInstall ?? isDev;
+
+    const modulePaths = Object.entries(options.moduleDeps.paths).map(([name, p]) => ({
+      name,
+      path: p,
+    }));
+
+    await resolveAllModuleDeps(modulePaths, rootDir, logger, autoInstall);
   }
 
   // Initialize modules

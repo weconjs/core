@@ -7,6 +7,7 @@
 
 import type { Application } from "express";
 import type { Server } from "socket.io";
+import type { z } from "zod";
 import type {
   WeconContext,
   ResolvedConfig,
@@ -14,9 +15,6 @@ import type {
   WeconServices,
 } from "./types.js";
 
-/**
- * Default logger implementation (console-based)
- */
 const defaultLogger: WeconLogger = {
   debug: (message, meta) => console.debug(`[DEBUG] ${message}`, meta ?? ""),
   info: (message, meta) => console.info(`[INFO] ${message}`, meta ?? ""),
@@ -25,18 +23,19 @@ const defaultLogger: WeconLogger = {
 };
 
 /**
- * Create a Wecon application context
- *
- * @param options - Context options
- * @returns The application context
+ * Create a Wecon application context.
+ * Includes service registry and typed module config access.
  */
 export function createContext(options: {
   config: ResolvedConfig;
   app: Application;
   io?: Server;
   logger?: WeconLogger;
+  /** Zod schemas for module configs (used by setModuleConfig validation) */
+  moduleSchemas?: Map<string, z.ZodType>;
 }): WeconContext {
   const services: WeconServices = {};
+  const moduleSchemas = options.moduleSchemas ?? new Map();
 
   const ctx: WeconContext = {
     config: options.config,
@@ -55,24 +54,43 @@ export function createContext(options: {
       }
       services[name] = service;
     },
+
+    getModuleConfig<T>(moduleName: string): T {
+      const config = ctx.config.moduleConfigs[moduleName];
+      if (config === undefined) {
+        throw new Error(`[Wecon] No config registered for module "${moduleName}"`);
+      }
+      return config as T;
+    },
+
+    setModuleConfig(moduleName: string, newConfig: unknown): void {
+      const schema = moduleSchemas.get(moduleName);
+      if (schema) {
+        // Validate against the module's Zod schema before setting
+        const result = schema.safeParse(newConfig);
+        if (!result.success) {
+          throw new Error(
+            `[Wecon] Invalid config for module "${moduleName}": ${result.error.message}`
+          );
+        }
+        ctx.config.moduleConfigs[moduleName] = result.data;
+      } else {
+        ctx.config.moduleConfigs[moduleName] = newConfig;
+      }
+    },
   };
 
   return ctx;
 }
 
 /**
- * Enhance the logger based on configuration
- *
- * @param config - The resolved configuration
- * @param customLogger - Optional custom logger implementation
+ * Create a level-aware logger from config.
  */
 export function createLogger(
   config: ResolvedConfig,
   customLogger?: WeconLogger
 ): WeconLogger {
-  if (customLogger) {
-    return customLogger;
-  }
+  if (customLogger) return customLogger;
 
   const level = config.logging.level ?? "info";
   const levels = ["debug", "info", "warn", "error"];
@@ -82,24 +100,16 @@ export function createLogger(
 
   return {
     debug: (message, meta) => {
-      if (shouldLog("debug")) {
-        console.debug(`[DEBUG] ${message}`, meta ?? "");
-      }
+      if (shouldLog("debug")) console.debug(`[DEBUG] ${message}`, meta ?? "");
     },
     info: (message, meta) => {
-      if (shouldLog("info")) {
-        console.info(`[INFO] ${message}`, meta ?? "");
-      }
+      if (shouldLog("info")) console.info(`[INFO] ${message}`, meta ?? "");
     },
     warn: (message, meta) => {
-      if (shouldLog("warn")) {
-        console.warn(`[WARN] ${message}`, meta ?? "");
-      }
+      if (shouldLog("warn")) console.warn(`[WARN] ${message}`, meta ?? "");
     },
     error: (message, meta) => {
-      if (shouldLog("error")) {
-        console.error(`[ERROR] ${message}`, meta ?? "");
-      }
+      if (shouldLog("error")) console.error(`[ERROR] ${message}`, meta ?? "");
     },
   };
 }

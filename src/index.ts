@@ -2,7 +2,7 @@
  * @weconjs/core
  *
  * Core package for the Wecon framework.
- * Provides configuration, module system, and runtime utilities.
+ * Provides configuration, module system, routing, and runtime utilities.
  */
 
 // Configuration
@@ -16,6 +16,16 @@ export {
   discoverSocketMiddleware,
   resolveModuleDependencies,
 } from "./module.js";
+
+// Module Loader (per-module package.json support)
+export {
+  readModulePackageJson,
+  checkModuleDeps,
+  detectPackageManager,
+  installModuleDeps,
+  resolveAllModuleDeps,
+} from "./module/index.js";
+export type { ModulePackageJson, DepsCheckResult } from "./module/index.js";
 
 // Context
 export { createContext, createLogger } from "./context.js";
@@ -36,6 +46,20 @@ export type {
   ApiResponse,
   RespondOptions,
 } from "./server/index.js";
+
+// Routing
+export {
+  Wecon,
+  Route,
+  Routes,
+  RoutesParam,
+  RaiMatcher,
+  ErrorCatcher,
+} from "./routing/index.js";
+export type { WeconDevConfig, RaiRoutesList } from "./routing/index.js";
+
+// Errors
+export { ConfigError, RequestError } from "./errors/index.js";
 
 // i18n
 export { loadI18nResources, createI18nMiddleware, initI18n } from "./i18n/index.js";
@@ -70,8 +94,21 @@ export type {
   SocketOptions,
 } from "./socket/index.js";
 
+// DevTools
+export { createDevToolsRouter } from "./devtools/index.js";
+export type { DevToolsOptions } from "./devtools/index.js";
+
 // Types
 export type {
+  // Routing types
+  RouteConfig,
+  RoutesConfig,
+  RAI,
+  DefaultRole,
+  ErrorInfoType,
+  ErrorTraceType,
+  PossibleErrosType,
+
   // Config types
   WeconConfig,
   ResolvedConfig,
@@ -108,4 +145,3 @@ export type {
   RouteHandler,
   WeconMiddleware,
 } from "./types.js";
-

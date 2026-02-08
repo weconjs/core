@@ -1,12 +1,87 @@
 /**
  * @wecon/core - Core Types
  *
- * Type definitions for the Wecon framework configuration and modules.
+ * Type definitions for the Wecon framework: config, modules, routing, and context.
  */
 
-import type { Application, Request, Response, NextFunction } from "express";
+import type { Application, Request, Response, NextFunction, Handler, RequestHandler } from "express";
 import type { Server, Socket } from "socket.io";
 import type { z } from "zod";
+import type Route from "./routing/Route.js";
+import type Routes from "./routing/Routes.js";
+import type RoutesParam from "./routing/RoutesParam.js";
+
+// =============================================================================
+// ROUTING TYPES (merged from @weconjs/lib)
+// =============================================================================
+
+/**
+ * Global namespace for role type augmentation.
+ * Override Wecon.Roles in your project's wecon.d.ts to get type-safe roles.
+ *
+ * @example
+ * ```typescript
+ * declare global {
+ *   namespace Wecon {
+ *     type Roles = 'admin' | 'user' | 'guest';
+ *   }
+ * }
+ * export {};
+ * ```
+ */
+declare global {
+  namespace Wecon {
+    type Roles = string;
+  }
+}
+
+/** Default role type — uses global Wecon.Roles override if available */
+export type DefaultRole = Wecon.Roles;
+
+/** Route Access Identifier — unique string key per endpoint */
+export type RAI = string;
+
+/** Route configuration input */
+export interface RouteConfig<TRole extends string = DefaultRole> {
+  method: "GET" | "POST" | "PUT" | "DELETE";
+  path: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  middlewares: Handler[] | RequestHandler[] | any[];
+  name?: string;
+  description?: string;
+  rai: RAI;
+  roles: TRole[];
+  meta?: Record<string, unknown>;
+}
+
+/** Routes group configuration input */
+export interface RoutesConfig<TRole extends string = DefaultRole> {
+  prefix?: string;
+  routes: Array<Route<TRole> | Routes<TRole>>;
+  params?: RoutesParam[];
+  middlewares?: Handler[];
+  mergeParams?: boolean;
+  module?: string;
+  meta?: Record<string, unknown>;
+}
+
+/** Error info for ErrorCatcher display */
+export type ErrorInfoType = {
+  title: string;
+  details: string;
+  fix: string;
+};
+
+/** Error map keyed by error code */
+export type PossibleErrosType = Record<string, ErrorInfoType>;
+
+/** Stack trace info captured at config time */
+export type ErrorTraceType = {
+  file: string;
+  line: number;
+  column: number;
+  function?: string | null;
+};
 
 // =============================================================================
 // APP CONFIGURATION
@@ -121,6 +196,8 @@ export interface WeconConfig {
   modules?: string[];
   features?: FeaturesConfig;
   hooks?: WeconHooks;
+  /** Per-module configuration values (keyed by module name) */
+  moduleConfigs?: Record<string, unknown>;
 }
 
 /**
@@ -135,6 +212,8 @@ export interface ResolvedConfig {
   https: HttpsConfig;
   features: FeaturesConfig;
   modules: string[];
+  /** Validated per-module configs (keyed by module name) */
+  moduleConfigs: Record<string, unknown>;
 }
 
 // =============================================================================
@@ -156,8 +235,10 @@ export interface ModuleDefinition {
   name: string;
   namespace?: string;
   description?: string;
+  /** Absolute path to the module directory (enables per-module package.json) */
+  path?: string;
   config?: ModuleConfigDefinition;
-  routes?: unknown; // Will be Routes from @wecon/core routing
+  routes?: Routes;
   imports?: string[];
   exports?: string[];
   onInit?: (ctx: WeconContext) => Promise<void> | void;
@@ -237,6 +318,12 @@ export interface WeconContext {
 
   /** Register a service */
   registerService(name: string, service: unknown): void;
+
+  /** Get typed module config (throws if module not registered) */
+  getModuleConfig<T>(moduleName: string): T;
+
+  /** Update module config at runtime (validates against Zod schema if available) */
+  setModuleConfig(moduleName: string, config: unknown): void;
 }
 
 // =============================================================================
