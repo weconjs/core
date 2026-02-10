@@ -94,10 +94,6 @@ export type {
   SocketOptions,
 } from "./socket/index.js";
 
-// DevTools
-export { createDevToolsRouter } from "./devtools/index.js";
-export type { DevToolsOptions } from "./devtools/index.js";
-
 // Types
 export type {
   // Routing types

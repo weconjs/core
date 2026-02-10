@@ -13,8 +13,6 @@ interface BannerOptions {
   protocol: "http" | "https";
   dbConnected: boolean;
   i18nEnabled: boolean;
-  devtoolsEnabled: boolean;
-  devtoolsPrefix: string;
   routeCount?: number;
 }
 
@@ -26,8 +24,6 @@ export async function printBanner(options: BannerOptions): Promise<void> {
     protocol,
     dbConnected,
     i18nEnabled,
-    devtoolsEnabled,
-    devtoolsPrefix,
     routeCount,
   } = options;
 
@@ -109,12 +105,6 @@ export async function printBanner(options: BannerOptions): Promise<void> {
   if (config.features?.fieldShield?.enabled) features.push("FieldShield");
   if (features.length > 0) {
     lines.push(`  ${c.dim("├─")} ${c.dim("Features")}    ${features.join(c.dim(", "))}`);
-  }
-
-  // DevTools
-  if (devtoolsEnabled) {
-    const dtUrl = `${url}${devtoolsPrefix}/ui`;
-    lines.push(`  ${c.dim("├─")} ${c.dim("DevTools")}    ${c.cyan(dtUrl)}`);
   }
 
   // Ready

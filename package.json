@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "build": "tsc && cp -r src/devtools/client dist/devtools/client",
+    "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "test": "vitest run",

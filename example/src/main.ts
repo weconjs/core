@@ -46,12 +46,6 @@ async function main() {
       logDir: path.resolve(__dirname, "../logs"),
     },
 
-    // DevTools (disabled in production automatically)
-    devtools: {
-      enabled: config.mode !== "production",
-      auth: { token: process.env.DEVTOOLS_TOKEN || "dev-secret-token" },
-    },
-
     // Module dependency management
     moduleDeps: {
       autoInstall: config.mode !== "production",

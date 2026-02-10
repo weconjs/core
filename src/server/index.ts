@@ -34,7 +34,6 @@ import { createDatabaseConnection, buildUriFromConfig, type DatabaseConnection }
 import { initI18n } from "../i18n/index.js";
 import { createContext } from "../context.js";
 import { resolveAllModuleDeps } from "../module/index.js";
-import { createDevToolsRouter, type DevToolsOptions } from "../devtools/index.js";
 import { printBanner } from "./banner.js";
 
 /**
@@ -185,11 +184,6 @@ export interface CreateWeconOptions {
      */
     paths?: Record<string, string>;
   };
-
-  /**
-   * DevTools REST API options
-   */
-  devtools?: DevToolsOptions;
 
   /**
    * Lifecycle hooks
@@ -541,13 +535,6 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
     }
   });
 
-  // Mount DevTools before Wecon RBAC routes (bypasses role checks)
-  const devToolsRouter = createDevToolsRouter(ctx, modules, options.devtools, wecon);
-  if (devToolsRouter) {
-    const prefix = options.devtools?.prefix ?? "/dev/devtools";
-    app.use(prefix, devToolsRouter);
-  }
-
   // Mount Wecon router if provided
   if (wecon) {
     app.use(wecon.handler());
@@ -610,9 +597,6 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
     }
   }
 
-  const devtoolsEnabled = !!devToolsRouter;
-  const devtoolsPrefix = options.devtools?.prefix ?? "/dev/devtools";
-
   let server: http.Server | https.Server | null = null;
 
   return {
@@ -644,8 +628,6 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
               protocol: "https",
               dbConnected: !!db,
               i18nEnabled: !!i18nEnabled,
-              devtoolsEnabled,
-              devtoolsPrefix,
               routeCount,
             });
             resolve(server as https.Server);
@@ -671,8 +653,6 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
             protocol: "http",
             dbConnected: !!db,
             i18nEnabled: !!i18nEnabled,
-            devtoolsEnabled,
-            devtoolsPrefix,
             routeCount,
           });
           resolve(server as http.Server);
