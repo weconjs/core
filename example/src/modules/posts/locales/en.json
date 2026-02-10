@@ -1,0 +1,9 @@
+{
+  "post_not_found": "Post not found.",
+  "post_created": "Post created successfully.",
+  "post_updated": "Post updated successfully.",
+  "post_deleted": "Post deleted successfully.",
+  "post_published": "Post has been published.",
+  "post_archived": "Post has been archived.",
+  "list_title": "Posts"
+}

@@ -1,0 +1,9 @@
+{
+  "post_not_found": "Publicacion no encontrada.",
+  "post_created": "Publicacion creada exitosamente.",
+  "post_updated": "Publicacion actualizada exitosamente.",
+  "post_deleted": "Publicacion eliminada exitosamente.",
+  "post_published": "La publicacion ha sido publicada.",
+  "post_archived": "La publicacion ha sido archivada.",
+  "list_title": "Publicaciones"
+}

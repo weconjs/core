@@ -1,0 +1,8 @@
+{
+  "register_success": "Registro exitoso. Bienvenido, {{name}}!",
+  "login_success": "Inicio de sesion exitoso.",
+  "login_failed": "Email o contrasena invalidos.",
+  "token_expired": "Tu sesion ha expirado. Por favor, inicia sesion de nuevo.",
+  "account_deactivated": "Esta cuenta ha sido desactivada.",
+  "unauthorized": "Debes iniciar sesion para acceder a este recurso."
+}

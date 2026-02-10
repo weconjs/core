@@ -1,0 +1,8 @@
+{
+  "register_success": "Registration successful. Welcome, {{name}}!",
+  "login_success": "Login successful.",
+  "login_failed": "Invalid email or password.",
+  "token_expired": "Your session has expired. Please log in again.",
+  "account_deactivated": "This account has been deactivated.",
+  "unauthorized": "You must be logged in to access this resource."
+}

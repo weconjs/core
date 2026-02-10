@@ -1,0 +1,8 @@
+{
+  "user_not_found": "Usuario no encontrado.",
+  "user_updated": "Usuario actualizado exitosamente.",
+  "user_deleted": "Usuario eliminado exitosamente.",
+  "user_deactivated": "La cuenta del usuario ha sido desactivada.",
+  "user_activated": "La cuenta del usuario ha sido activada.",
+  "list_title": "Usuarios"
+}

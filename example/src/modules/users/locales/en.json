@@ -1,0 +1,8 @@
+{
+  "user_not_found": "User not found.",
+  "user_updated": "User updated successfully.",
+  "user_deleted": "User deleted successfully.",
+  "user_deactivated": "User account has been deactivated.",
+  "user_activated": "User account has been activated.",
+  "list_title": "Users"
+}
