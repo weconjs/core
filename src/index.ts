@@ -15,6 +15,7 @@ export {
   discoverSocketHandlers,
   discoverSocketMiddleware,
   resolveModuleDependencies,
+  resolveModuleConfigs,
 } from "./module.js";
 
 // Module Loader (per-module package.json support)

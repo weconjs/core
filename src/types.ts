@@ -4,7 +4,7 @@
  * Type definitions for the Wecon framework: config, modules, routing, and context.
  */
 
-import type { Application, Request, Response, NextFunction, Handler, RequestHandler } from "express";
+import type { Application, Request, Response, NextFunction, Handler, RequestHandler, CookieOptions } from "express";
 import type { Server, Socket } from "socket.io";
 import type { z } from "zod";
 import type Route from "./routing/Route.js";
@@ -223,6 +223,7 @@ export interface ResolvedConfig {
 export interface ModuleConfigDefinition<T extends z.ZodType = z.ZodType> {
   schema: T;
   defaults?: Partial<z.infer<T>>;
+  load?: () => unknown | Promise<unknown>;
 }
 
 /**
@@ -382,6 +383,9 @@ export interface AuthConfig {
     name?: string;
     maxAge?: number;
     secure?: boolean;
+    httpOnly?: boolean;
+    secretKey?: string;
+    cookie?: CookieOptions;
   };
 }
 

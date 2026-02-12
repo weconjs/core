@@ -16,6 +16,7 @@ interface BannerOptions {
   devtoolsEnabled: boolean;
   devtoolsPrefix: string;
   routeCount?: number;
+  apiPrefix?: string;
 }
 
 export async function printBanner(options: BannerOptions): Promise<void> {
@@ -29,6 +30,7 @@ export async function printBanner(options: BannerOptions): Promise<void> {
     devtoolsEnabled,
     devtoolsPrefix,
     routeCount,
+    apiPrefix,
   } = options;
 
   // Dynamic import chalk (ESM)
@@ -88,10 +90,17 @@ export async function printBanner(options: BannerOptions): Promise<void> {
 
   // Server info
   lines.push(`  ${c.dim("├─")} ${c.dim("URL")}         ${c.cyan(url)}`);
+  if (apiPrefix) {
+    lines.push(`  ${c.dim("├─")} ${c.dim("API Prefix")}  ${c.cyan(apiPrefix)}`);
+  }
+  lines.push(`  ${c.dim("├─")} ${c.dim("Version")}     ${c.white(`v${config.app.version}`)}`);
   lines.push(`  ${c.dim("├─")} ${c.dim("Mode")}        ${modeColor(mode)}`);
 
   // Database
-  const dbStatus = dbConnected ? c.green("● connected") : c.dim("○ disabled");
+  const dbName = config.database?.mongoose?.database;
+  const dbStatus = dbConnected
+    ? c.green("● connected") + (dbName ? ` ${c.dim("—")} ${c.white(dbName)}` : "")
+    : c.dim("○ disabled");
   lines.push(`  ${c.dim("├─")} ${c.dim("Database")}    ${dbStatus}`);
 
   // Modules
@@ -107,6 +116,8 @@ export async function printBanner(options: BannerOptions): Promise<void> {
   const features: string[] = [];
   if (i18nEnabled) features.push("i18n");
   if (config.features?.fieldShield?.enabled) features.push("FieldShield");
+  if (config.features?.swagger?.enabled) features.push("Swagger");
+  if (config.features?.socket?.enabled) features.push("Socket.IO");
   if (features.length > 0) {
     lines.push(`  ${c.dim("├─")} ${c.dim("Features")}    ${features.join(c.dim(", "))}`);
   }

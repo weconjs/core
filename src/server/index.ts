@@ -87,6 +87,11 @@ export interface CreateWeconOptions {
   wecon?: Wecon;
 
   /**
+   * API prefix shown in the startup banner (e.g. "/api/v1")
+   */
+  apiPrefix?: string;
+
+  /**
    * Custom middleware to apply before routes
    */
   middleware?: RequestHandler[];
@@ -435,9 +440,14 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
     if (mod.config?.schema) {
       moduleSchemas.set(mod.name, mod.config.schema);
 
-      // Merge defaults with user-provided config, then validate
-      const userConfig = config.moduleConfigs[mod.name] ?? {};
-      const merged = { ...(mod.config.defaults ?? {}), ...(userConfig as object) };
+      // If no user-provided config, try module's load() function
+      let userConfig = config.moduleConfigs[mod.name];
+      if (userConfig === undefined && mod.config.load) {
+        userConfig = await mod.config.load();
+      }
+
+      // Merge defaults with loaded/user-provided config, then validate
+      const merged = { ...(mod.config.defaults ?? {}), ...((userConfig ?? {}) as object) };
       const result = mod.config.schema.safeParse(merged);
 
       if (!result.success) {
@@ -447,7 +457,6 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
       }
 
       config.moduleConfigs[mod.name] = result.data;
-      // Config validated - shown in startup banner
     }
   }
 
@@ -653,6 +662,7 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
               devtoolsEnabled,
               devtoolsPrefix,
               routeCount,
+              apiPrefix: options.apiPrefix,
             });
             resolve(server as https.Server);
           });
@@ -680,6 +690,7 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
             devtoolsEnabled,
             devtoolsPrefix,
             routeCount,
+            apiPrefix: options.apiPrefix,
           });
           resolve(server as http.Server);
         });

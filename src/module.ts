@@ -92,7 +92,6 @@ export function defineModule(definition: ModuleDefinition): WeconModule {
     imports: definition.imports ?? [],
     exports: definition.exports ?? [],
     onInit: definition.onInit,
-    onDestroy: definition.onDestroy,
     socketHandlers: [],
     socketMiddleware: [],
   };
@@ -286,4 +285,38 @@ export function resolveModuleDependencies(
   }
 
   return resolved;
+}
+
+/**
+ * Resolve module configs by calling each module's load() function
+ *
+ * Iterates over all modules, calls their config.load() if present,
+ * merges with defaults, and validates against the module's Zod schema.
+ *
+ * @param modules - Array or record of modules
+ * @returns Record of validated module configs keyed by module name
+ */
+export async function resolveModuleConfigs(
+  modules: WeconModule[] | Record<string, WeconModule>
+): Promise<Record<string, unknown>> {
+  const moduleList = Array.isArray(modules) ? modules : Object.values(modules);
+  const configs: Record<string, unknown> = {};
+
+  for (const mod of moduleList) {
+    if (!mod.config?.schema) continue;
+
+    const rawConfig = mod.config.load ? await mod.config.load() : {};
+    const merged = { ...(mod.config.defaults ?? {}), ...(rawConfig as object) };
+    const result = mod.config.schema.safeParse(merged);
+
+    if (!result.success) {
+      throw new Error(
+        `[Wecon] Invalid config for module "${mod.name}": ${result.error.message}`
+      );
+    }
+
+    configs[mod.name] = result.data;
+  }
+
+  return configs;
 }
