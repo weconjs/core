@@ -459,6 +459,12 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
     moduleSchemas,
   });
 
+  // Inject WeconContext into every request (enables req.ctx in handlers/middleware)
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    (req as any).ctx = ctx;
+    next();
+  });
+
   // Connect database if enabled
   let db: DatabaseConnection | undefined;
   const shouldConnectDb = options.database?.enabled ?? (config.database?.mongoose?.host !== undefined);

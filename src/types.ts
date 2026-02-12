@@ -167,18 +167,6 @@ export interface FeaturesConfig {
 }
 
 /**
- * Mode-specific configuration
- */
-export interface ModeConfig {
-  extends?: string;
-  port?: number;
-  database?: DatabaseConfig;
-  logging?: LoggingConfig;
-  https?: HttpsConfig;
-  [key: string]: unknown;
-}
-
-/**
  * Lifecycle hooks
  */
 export interface WeconHooks {
@@ -192,7 +180,16 @@ export interface WeconHooks {
  */
 export interface WeconConfig {
   app: AppConfig;
-  modes?: Record<string, ModeConfig>;
+  /** Active mode name (defaults to NODE_ENV or 'development') */
+  mode?: string;
+  /** Server port */
+  port?: number;
+  /** Database configuration */
+  database?: DatabaseConfig;
+  /** Logging configuration */
+  logging?: LoggingConfig;
+  /** HTTPS configuration */
+  https?: HttpsConfig;
   modules?: string[];
   features?: FeaturesConfig;
   hooks?: WeconHooks;
