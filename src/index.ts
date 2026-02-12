@@ -118,7 +118,6 @@ export type {
   HttpsConfig,
   SocketConfig,
   FeaturesConfig,
-  ModeConfig,
   WeconHooks,
 
   // Module types

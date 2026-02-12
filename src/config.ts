@@ -2,7 +2,7 @@
  * @wecon/core - defineConfig
  *
  * Creates a type-safe Wecon configuration object.
- * Supports mode inheritance, feature flags, and lifecycle hooks.
+ * Supports feature flags, module configs, and lifecycle hooks.
  *
  * @example
  * ```typescript
@@ -10,10 +10,10 @@
  *
  * export default defineConfig({
  *   app: { name: 'my-app', version: '1.0.0' },
- *   modes: {
- *     development: { port: 3001, logging: { level: 'debug' } },
- *     production: { port: 8080, logging: { level: 'warn' } },
- *   },
+ *   mode: 'development',
+ *   port: 3001,
+ *   database: { mongoose: { host: 'localhost', database: 'myapp' } },
+ *   logging: { level: 'debug' },
  *   modules: ['./modules/auth', './modules/users'],
  *   features: {
  *     socket: { enabled: true },
@@ -23,7 +23,7 @@
  * ```
  */
 
-import type { WeconConfig, ResolvedConfig, ModeConfig } from "./types.js";
+import type { WeconConfig, ResolvedConfig } from "./types.js";
 
 /**
  * Default configuration values
@@ -74,10 +74,15 @@ export function defineConfig(config: WeconConfig): WeconConfig {
       name: config.app.name,
       version: config.app.version ?? "1.0.0",
     },
-    modes: config.modes ?? {},
+    mode: config.mode,
+    port: config.port,
+    database: config.database,
+    logging: config.logging,
+    https: config.https,
     modules: config.modules ?? [],
     features: config.features ?? {},
     hooks: config.hooks ?? {},
+    moduleConfigs: config.moduleConfigs ?? {},
   };
 }
 
@@ -115,54 +120,17 @@ function deepMerge<T extends object>(
 }
 
 /**
- * Resolve a mode configuration with inheritance
- *
- * @param modes - All mode configurations
- * @param modeName - The mode to resolve
- * @param visited - Set of visited modes (for circular detection)
- */
-function resolveMode(
-  modes: Record<string, ModeConfig>,
-  modeName: string,
-  visited: Set<string> = new Set()
-): ModeConfig {
-  if (visited.has(modeName)) {
-    throw new Error(
-      `[Wecon] Circular mode inheritance detected: ${Array.from(visited).join(
-        " -> "
-      )} -> ${modeName}`
-    );
-  }
-
-  const mode = modes[modeName];
-  if (!mode) {
-    throw new Error(`[Wecon] Mode "${modeName}" not found in configuration`);
-  }
-
-  visited.add(modeName);
-
-  // If this mode extends another, resolve the parent first
-  if (mode.extends) {
-    const parentMode = resolveMode(modes, mode.extends, visited);
-    const { extends: _, ...modeWithoutExtends } = mode;
-    return deepMerge(parentMode, modeWithoutExtends as Partial<ModeConfig>);
-  }
-
-  return mode;
-}
-
-/**
- * Resolve configuration for a specific mode
+ * Resolve configuration by merging defaults with user-provided values
  *
  * @param config - The Wecon configuration
- * @param mode - The mode to resolve (defaults to NODE_ENV or 'development')
+ * @param mode - Optional mode override
  * @returns The fully resolved configuration
  */
 export function resolveConfig(
   config: WeconConfig,
   mode?: string
 ): ResolvedConfig {
-  const targetMode = mode ?? process.env.NODE_ENV ?? "development";
+  const targetMode = mode ?? config.mode ?? process.env.NODE_ENV ?? "development";
 
   // Start with defaults
   let resolved: ResolvedConfig = {
@@ -180,17 +148,13 @@ export function resolveConfig(
     moduleConfigs: { ...(config.moduleConfigs ?? {}) },
   };
 
-  // Apply mode-specific configuration if defined
-  if (config.modes && config.modes[targetMode]) {
-    const modeConfig = resolveMode(config.modes, targetMode);
-
-    resolved = deepMerge(resolved, {
-      port: modeConfig.port,
-      database: modeConfig.database,
-      logging: modeConfig.logging,
-      https: modeConfig.https,
-    } as Partial<ResolvedConfig>);
-  }
+  // Merge user-provided flat config over defaults
+  resolved = deepMerge(resolved, {
+    port: config.port,
+    database: config.database,
+    logging: config.logging,
+    https: config.https,
+  } as Partial<ResolvedConfig>);
 
   // Merge features
   if (config.features) {
