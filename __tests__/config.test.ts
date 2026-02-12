@@ -1,7 +1,7 @@
 /**
  * @wecon/core - defineConfig Tests
  *
- * Tests for configuration creation, validation, and mode resolution.
+ * Tests for configuration creation, validation, and flat config resolution.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -16,10 +16,10 @@ describe('defineConfig', () => {
 
     expect(config.app.name).toBe('test-app');
     expect(config.app.version).toBe('1.0.0');
-    expect(config.modes).toEqual({});
     expect(config.modules).toEqual([]);
     expect(config.features).toEqual({});
     expect(config.hooks).toEqual({});
+    expect(config.moduleConfigs).toEqual({});
   });
 
   it('should preserve custom version', () => {
@@ -44,17 +44,22 @@ describe('defineConfig', () => {
     }).toThrow('[Wecon] app.name is required');
   });
 
-  it('should preserve modes configuration', () => {
+  it('should preserve flat config fields', () => {
     const config = defineConfig({
       app: { name: 'test-app' },
-      modes: {
-        development: { port: 3001 },
-        production: { port: 8080 },
-      },
+      mode: 'production',
+      port: 8080,
+      database: { debug: false, mongoose: { host: 'db.example.com', database: 'prod-db' } },
+      logging: { level: 'warn' },
+      https: { enabled: true, port: 443 },
     });
 
-    expect(config.modes?.development?.port).toBe(3001);
-    expect(config.modes?.production?.port).toBe(8080);
+    expect(config.mode).toBe('production');
+    expect(config.port).toBe(8080);
+    expect(config.database?.debug).toBe(false);
+    expect(config.database?.mongoose?.host).toBe('db.example.com');
+    expect(config.logging?.level).toBe('warn');
+    expect(config.https?.enabled).toBe(true);
   });
 
   it('should preserve modules array', () => {
@@ -79,69 +84,42 @@ describe('defineConfig', () => {
     expect(config.features?.socket?.path).toBe('/ws');
     expect(config.features?.fieldShield?.strict).toBe(true);
   });
+
+  it('should preserve moduleConfigs', () => {
+    const config = defineConfig({
+      app: { name: 'test-app' },
+      moduleConfigs: {
+        auth: { jwt: { secretKey: 'test-secret' } },
+        security: { cors: { origin: '*' } },
+      },
+    });
+
+    expect((config.moduleConfigs as any).auth.jwt.secretKey).toBe('test-secret');
+    expect((config.moduleConfigs as any).security.cors.origin).toBe('*');
+  });
 });
 
 describe('resolveConfig', () => {
-  const baseConfig: WeconConfig = {
-    app: { name: 'test-app', version: '1.0.0' },
-    modes: {
-      development: {
-        port: 3001,
-        database: { debug: true },
-        logging: { level: 'debug' },
-      },
-      production: {
-        port: 8080,
-        database: { debug: false },
-        logging: { level: 'warn' },
-      },
-      staging: {
-        extends: 'production',
-        port: 8081,
-        database: {
-          mongoose: { database: 'staging-db' },
-        },
-      },
-    },
-    modules: ['./modules/auth'],
-    features: {
-      socket: { enabled: true },
-    },
-  };
+  it('should resolve flat config with explicit values', () => {
+    const config: WeconConfig = {
+      app: { name: 'test-app', version: '1.0.0' },
+      mode: 'development',
+      port: 4000,
+      database: { debug: true },
+      logging: { level: 'debug' },
+      modules: ['./modules/auth'],
+      features: { socket: { enabled: true } },
+    };
 
-  it('should resolve development mode', () => {
-    const resolved = resolveConfig(baseConfig, 'development');
+    const resolved = resolveConfig(config, 'development');
 
     expect(resolved.mode).toBe('development');
-    expect(resolved.port).toBe(3001);
+    expect(resolved.port).toBe(4000);
     expect(resolved.database.debug).toBe(true);
     expect(resolved.logging.level).toBe('debug');
   });
 
-  it('should resolve production mode', () => {
-    const resolved = resolveConfig(baseConfig, 'production');
-
-    expect(resolved.mode).toBe('production');
-    expect(resolved.port).toBe(8080);
-    expect(resolved.database.debug).toBe(false);
-    expect(resolved.logging.level).toBe('warn');
-  });
-
-  it('should handle mode inheritance with extends', () => {
-    const resolved = resolveConfig(baseConfig, 'staging');
-
-    expect(resolved.mode).toBe('staging');
-    // Should inherit production port but override with staging port
-    expect(resolved.port).toBe(8081);
-    // Should inherit production logging
-    expect(resolved.logging.level).toBe('warn');
-    // Should inherit production database.debug
-    expect(resolved.database.debug).toBe(false);
-    // Should have staging-specific database name
-    expect(resolved.database.mongoose?.database).toBe('staging-db');
-  });
-
-  it('should apply defaults when mode is not defined', () => {
+  it('should apply defaults when no overrides are provided', () => {
     const simpleConfig: WeconConfig = {
       app: { name: 'simple-app' },
     };
@@ -150,41 +128,70 @@ describe('resolveConfig', () => {
 
     expect(resolved.port).toBe(3001); // Default port
     expect(resolved.logging.level).toBe('info'); // Default level
+    expect(resolved.database.debug).toBe(false); // Default debug
+    expect(resolved.database.mongoose?.host).toBe('localhost'); // Default host
+  });
+
+  it('should deep merge database config over defaults', () => {
+    const config: WeconConfig = {
+      app: { name: 'test-app' },
+      database: {
+        debug: true,
+        mongoose: { database: 'custom-db' },
+      },
+    };
+
+    const resolved = resolveConfig(config);
+
+    expect(resolved.database.debug).toBe(true);
+    expect(resolved.database.mongoose?.database).toBe('custom-db');
+    // Default values preserved
+    expect(resolved.database.mongoose?.host).toBe('localhost');
+    expect(resolved.database.mongoose?.port).toBe(27017);
   });
 
   it('should merge features from config', () => {
-    const resolved = resolveConfig(baseConfig, 'development');
+    const config: WeconConfig = {
+      app: { name: 'test-app' },
+      features: { socket: { enabled: true } },
+    };
+
+    const resolved = resolveConfig(config, 'development');
 
     expect(resolved.features.socket?.enabled).toBe(true);
   });
 
   it('should include modules from config', () => {
-    const resolved = resolveConfig(baseConfig, 'development');
+    const config: WeconConfig = {
+      app: { name: 'test-app' },
+      modules: ['./modules/auth'],
+    };
+
+    const resolved = resolveConfig(config, 'development');
 
     expect(resolved.modules).toEqual(['./modules/auth']);
   });
 
-  it('should use defaults for non-existent mode', () => {
-    // Non-existent mode should use defaults, not throw
-    const resolved = resolveConfig(baseConfig, 'nonexistent');
-
-    expect(resolved.mode).toBe('nonexistent');
-    expect(resolved.port).toBe(3001); // Default port
-  });
-
-  it('should detect circular mode inheritance', () => {
-    const circularConfig: WeconConfig = {
-      app: { name: 'circular-app' },
-      modes: {
-        a: { extends: 'b', port: 3000 },
-        b: { extends: 'c', port: 3001 },
-        c: { extends: 'a', port: 3002 },
-      },
+  it('should use mode param over config.mode', () => {
+    const config: WeconConfig = {
+      app: { name: 'test-app' },
+      mode: 'development',
     };
 
-    expect(() => {
-      resolveConfig(circularConfig, 'a');
-    }).toThrow('Circular mode inheritance detected');
+    const resolved = resolveConfig(config, 'production');
+
+    expect(resolved.mode).toBe('production');
+  });
+
+  it('should fall back to config.mode when no param is provided', () => {
+    const config: WeconConfig = {
+      app: { name: 'test-app' },
+      mode: 'staging',
+    };
+
+    const resolved = resolveConfig(config);
+
+    expect(resolved.mode).toBe('staging');
   });
 
   it('should use NODE_ENV when mode is not specified', () => {
@@ -192,11 +199,43 @@ describe('resolveConfig', () => {
     process.env.NODE_ENV = 'production';
 
     try {
-      const resolved = resolveConfig(baseConfig);
+      const config: WeconConfig = {
+        app: { name: 'test-app' },
+      };
+
+      const resolved = resolveConfig(config);
       expect(resolved.mode).toBe('production');
-      expect(resolved.port).toBe(8080);
     } finally {
       process.env.NODE_ENV = originalEnv;
     }
+  });
+
+  it('should default to development when nothing is specified', () => {
+    const originalEnv = process.env.NODE_ENV;
+    delete process.env.NODE_ENV;
+
+    try {
+      const config: WeconConfig = {
+        app: { name: 'test-app' },
+      };
+
+      const resolved = resolveConfig(config);
+      expect(resolved.mode).toBe('development');
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+    }
+  });
+
+  it('should preserve moduleConfigs in resolved config', () => {
+    const config: WeconConfig = {
+      app: { name: 'test-app' },
+      moduleConfigs: {
+        auth: { jwt: { secretKey: 'my-secret' } },
+      },
+    };
+
+    const resolved = resolveConfig(config);
+
+    expect((resolved.moduleConfigs as any).auth.jwt.secretKey).toBe('my-secret');
   });
 });
