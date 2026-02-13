@@ -77,6 +77,9 @@ export function createDevToolsRouter(
   const dtCtx: DevToolsContext = { ctx, modules };
   const modulesDir = options.modulesDir ?? "./src/modules";
 
+  // Parse JSON bodies for PUT/POST endpoints
+  router.use(express.json());
+
   // Optional bearer token auth
   if (options.auth?.token) {
     router.use(createDevToolsAuth(options.auth.token));

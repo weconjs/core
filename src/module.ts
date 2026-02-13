@@ -92,6 +92,7 @@ export function defineModule(definition: ModuleDefinition): WeconModule {
     imports: definition.imports ?? [],
     exports: definition.exports ?? [],
     onInit: definition.onInit,
+    onDestroy: definition.onDestroy,
     socketHandlers: [],
     socketMiddleware: [],
   };
