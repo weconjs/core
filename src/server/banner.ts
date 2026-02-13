@@ -123,10 +123,10 @@ export async function printBanner(options: BannerOptions): Promise<void> {
   }
 
   // DevTools
-  if (devtoolsEnabled) {
-    const dtUrl = `${url}${devtoolsPrefix}/ui`;
-    lines.push(`  ${c.dim("├─")} ${c.dim("DevTools")}    ${c.cyan(dtUrl)}`);
-  }
+  // if (devtoolsEnabled) {
+  //   const dtUrl = `${url}${devtoolsPrefix}`;
+  //   lines.push(`  ${c.dim("├─")} ${c.dim("DevTools")}    ${c.cyan(dtUrl)}`);
+  // }
 
   // Ready
   lines.push(`  ${c.dim("│")}`);

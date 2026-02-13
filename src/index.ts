@@ -109,6 +109,10 @@ export type {
 export { createDevToolsRouter } from "./devtools/index.js";
 export type { DevToolsOptions } from "./devtools/index.js";
 
+// Global type augmentations (Express.Request extensions)
+import "./types/express.js";
+import "./types/i18next.js";
+
 // Types
 export type {
   // Routing types
