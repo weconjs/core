@@ -1,6 +1,6 @@
 {
   "name": "@weconjs/core",
-  "version": "1.2.6",
+  "version": "1.2.10",
   "description": "Wecon Framework Core - defineConfig, defineModule, and runtime utilities",
   "type": "module",
   "main": "./dist/index.js",
