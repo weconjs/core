@@ -63,7 +63,17 @@ export type { WeconDevConfig, RaiRoutesList } from "./routing/index.js";
 export { ConfigError, RequestError } from "./errors/index.js";
 
 // i18n
-export { loadI18nResources, createI18nMiddleware, initI18n } from "./i18n/index.js";
+export {
+  initializeI18n,
+  initI18n,
+  i18nNamespaceMiddleware,
+  getI18n,
+  i18next,
+  I18nLoader,
+  translate,
+  getCurrentLanguage,
+  changeLanguage,
+} from "./i18n/index.js";
 export type { I18nResources } from "./i18n/index.js";
 
 // Database

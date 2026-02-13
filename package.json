@@ -24,6 +24,8 @@
   "dependencies": {
     "chalk": "^5.4.1",
     "glob": "^10.3.10",
+    "i18next": "^25.6.3",
+    "i18next-http-middleware": "^3.8.2",
     "path-to-regexp": "^8.2.0",
     "zod": "^3.22.4"
   },

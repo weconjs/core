@@ -8,28 +8,37 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import type { Request, Response } from "express";
 import type { DevToolsContext } from "../types.js";
-import { loadI18nResources } from "../../i18n/index.js";
+import { I18nLoader } from "../../i18n/index.js";
 
 /**
  * GET /i18n - List all namespaces with languages and key counts
  */
 export function listNamespaces(dtCtx: DevToolsContext, modulesDir: string) {
-  return async (_req: Request, res: Response): Promise<void> => {
+  return (_req: Request, res: Response): void => {
     try {
-      const resources = await loadI18nResources(modulesDir);
+      const loader = new I18nLoader(modulesDir);
+      const resources = loader.loadAll();
 
-      const namespaces = Object.entries(resources).map(([namespace, langs]) => ({
+      // Convert from { lang: { ns: translations } } to namespace-centric view
+      const nsMap: Record<string, { languages: string[]; keyCounts: Record<string, number> }> = {};
+
+      for (const [lang, namespaces] of Object.entries(resources)) {
+        for (const [ns, translations] of Object.entries(namespaces)) {
+          if (!nsMap[ns]) {
+            nsMap[ns] = { languages: [], keyCounts: {} };
+          }
+          nsMap[ns].languages.push(lang);
+          nsMap[ns].keyCounts[lang] = Object.keys(translations).length;
+        }
+      }
+
+      const data = Object.entries(nsMap).map(([namespace, info]) => ({
         namespace,
-        languages: Object.keys(langs),
-        keyCounts: Object.fromEntries(
-          Object.entries(langs).map(([lang, translations]) => [
-            lang,
-            Object.keys(translations).length,
-          ])
-        ),
+        languages: info.languages,
+        keyCounts: info.keyCounts,
       }));
 
-      res.json({ success: true, data: namespaces });
+      res.json({ success: true, data });
     } catch (err) {
       res.status(500).json({
         success: false,

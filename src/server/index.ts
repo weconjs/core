@@ -31,7 +31,7 @@ import type { ResolvedConfig, WeconModule, WeconLogger, WeconContext } from "../
 import type Wecon from "../routing/Wecon.js";
 import { createWinstonLogger, createConsoleLogger } from "../logger/index.js";
 import { createDatabaseConnection, buildUriFromConfig, type DatabaseConnection } from "../database/index.js";
-import { initI18n } from "../i18n/index.js";
+import { initializeI18n, i18nNamespaceMiddleware } from "../i18n/index.js";
 import { createContext } from "../context.js";
 import { resolveAllModuleDeps } from "../module/index.js";
 import { createDevToolsRouter, type DevToolsOptions } from "../devtools/index.js";
@@ -92,9 +92,9 @@ export interface CreateWeconOptions {
   apiPrefix?: string;
 
   /**
-   * Custom middleware to apply before routes
+   * Custom middlewares to apply before routes
    */
-  middleware?: RequestHandler[];
+  middlewares?: RequestHandler[];
 
   /**
    * Database options
@@ -201,7 +201,7 @@ export interface CreateWeconOptions {
    */
   hooks?: {
     /**
-     * Called before server starts (after middleware setup)
+     * Called before server starts (after middlewares setup)
      */
     onBoot?: (ctx: WeconContext) => Promise<void> | void;
 
@@ -397,7 +397,7 @@ function createGracefulShutdown(
  * @returns Wecon application instance
  */
 export async function createWecon(options: CreateWeconOptions): Promise<WeconApp> {
-  const { config, modules, wecon, middleware = [], hooks = {} } = options;
+  const { config, modules, wecon, middlewares = [], hooks = {} } = options;
 
   // Install respond helper (wrapped in try-catch as express may not be available yet)
   try {
@@ -468,7 +468,7 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
     moduleSchemas,
   });
 
-  // Inject WeconContext into every request (enables req.ctx in handlers/middleware)
+  // Inject WeconContext into every request (enables req.ctx in handlers/middlewares)
   app.use((req: Request, _res: Response, next: NextFunction) => {
     (req as any).ctx = ctx;
     next();
@@ -505,18 +505,15 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
     }
   }
 
-  // Apply default middleware
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
-
   // Initialize i18n if enabled
   const i18nEnabled = options.i18n?.enabled ?? config.features?.i18n?.enabled;
   if (i18nEnabled) {
     try {
       const modulesDir = options.i18n?.modulesDir ?? "./src/modules";
       const defaultLocale = config.features?.i18n?.defaultLocale ?? "en";
-      const i18nMiddleware = await initI18n(modulesDir, defaultLocale);
+      const i18nMiddleware = await initializeI18n(modulesDir, defaultLocale);
       app.use(i18nMiddleware);
+      app.use(i18nNamespaceMiddleware);
     } catch (err) {
       logger.warn("Failed to initialize i18n", {
         error: (err as Error).message,
@@ -524,8 +521,8 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
     }
   }
 
-  // Apply custom middleware
-  for (const mw of middleware) {
+  // Apply custom middlewares
+  for (const mw of middlewares) {
     app.use(mw);
   }
 
