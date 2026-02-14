@@ -11,6 +11,7 @@ import type {
 import ErrorCatcher from "./ErrorCatcher.js";
 import errors from "../errors/index.js";
 import type RoutesParam from "./RoutesParam.js";
+import type PostmanRoute from "./PostmanRoute.js";
 
 /**
  * Single API endpoint definition.
@@ -26,6 +27,7 @@ class Route<TRole extends string = DefaultRole> extends ErrorCatcher {
   description: string;
   rai: RAI;
   roles: TRole[];
+  postman?: PostmanRoute;
   meta?: Record<string, unknown>;
   public debugInfo: ErrorTraceType;
 
@@ -40,6 +42,7 @@ class Route<TRole extends string = DefaultRole> extends ErrorCatcher {
     this.description = r.description ? r.description : "";
     this.rai = r.rai;
     this.roles = r.roles;
+    this.postman = r.postman;
     this.meta = r.meta;
     this.debugInfo = Route.getCallerInfo();
 

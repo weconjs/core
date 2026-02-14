@@ -18,6 +18,7 @@ import Routes from "./Routes.js";
 import Route from "./Route.js";
 import errors from "../errors/index.js";
 import RaiMatcher from "./RaiMatcher.js";
+import PostmanGenerator from "../generators/PostmanGenerator.js";
 
 /** Development mode configuration */
 export interface WeconDevConfig {
@@ -30,6 +31,29 @@ export interface WeconDevConfig {
 }
 
 /**
+ * Postman configuration interface
+ */
+export interface WeconPostmanConfig {
+  /** Name of the Postman collection */
+  name: string;
+  /** Description of the API */
+  description?: string;
+  /** Base URL for all requests */
+  baseUrl?: string;
+  /** API version */
+  version?: string;
+  /** Output file paths */
+  output?: {
+    /** Path to save the collection JSON file */
+    collection?: string;
+    /** Path to save the environment JSON file */
+    environment?: string;
+  };
+  /** Auto-generate on build */
+  autoGenerate?: boolean;
+}
+
+/**
  * Main Wecon class with fluent API.
  * Compiles routes into a single master router with RBAC enforcement.
  */
@@ -37,6 +61,7 @@ class Wecon<TRole extends string = DefaultRole> {
   private _routes?: Routes<TRole>;
   private _roles: TRole[] = [];
   private _guestRole: string = "guest";
+  private _postman?: WeconPostmanConfig;
   private _onRoutesPrepared?: (routes: Route<TRole>[]) => void | Promise<void>;
   private _dev?: WeconDevConfig;
 
@@ -105,6 +130,19 @@ class Wecon<TRole extends string = DefaultRole> {
       throw new Error("Cannot modify Wecon after build() has been called");
     }
     this._dev = config;
+    return this;
+  }
+
+  /**
+   * Configure Postman collection generation
+   * @param config - Postman configuration object
+   * @returns this for method chaining
+   */
+  public postman(config: WeconPostmanConfig): this {
+    if (this._built) {
+      throw new Error("Cannot modify Wecon after build() has been called");
+    }
+    this._postman = config;
     return this;
   }
 
@@ -186,6 +224,13 @@ class Wecon<TRole extends string = DefaultRole> {
           console.error("Error in onRoutesPrepared callback:", err);
         });
       }
+    }
+
+    // 7. Generate Postman collection if configured
+    if (this._postman?.autoGenerate) {
+      this.generatePostman().catch((err) => {
+        console.error("Error generating Postman collection:", err);
+      });
     }
 
     return this;
@@ -314,6 +359,51 @@ class Wecon<TRole extends string = DefaultRole> {
       throw new Error("Cannot get handler before build() is called. Make sure to call build() first.");
     }
     return this._middleware!;
+  }
+
+  /**
+   * Generate Postman collection and environment files
+   */
+  public async generatePostman(): Promise<void> {
+    if (!this._postman) {
+      throw new Error(
+        "Postman configuration not provided. Call postman() before generatePostman()"
+      );
+    }
+
+    if (!this._built) {
+      throw new Error(
+        "Cannot generate Postman collection before build() is called"
+      );
+    }
+
+    if (!this._routes) {
+      throw new Error(
+        "Routes not configured. Cannot generate Postman collection."
+      );
+    }
+
+    try {
+      const { collection, environment } = await PostmanGenerator.generateFromWecon(
+        {
+          name: this._postman.name,
+          description: this._postman.description,
+          baseUrl: this._postman.baseUrl,
+          version: this._postman.version,
+          output: this._postman.output,
+        },
+        this._routes
+      );
+
+      if (this._dev?.logRoutes) {
+        console.log(`✓ Generated Postman collection: ${this._postman.name}`);
+        console.log(`  - ${collection.item.length} top-level items`);
+        console.log(`  - ${environment.values.length} environment variables`);
+      }
+    } catch (error) {
+      console.error("Failed to generate Postman collection:", error);
+      throw error;
+    }
   }
 }
 

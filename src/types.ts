@@ -51,6 +51,7 @@ export interface RouteConfig<TRole extends string = DefaultRole> {
   description?: string;
   rai: RAI;
   roles: TRole[];
+  postman?: import("./routing/PostmanRoute.js").default;
   meta?: Record<string, unknown>;
 }
 
@@ -61,6 +62,7 @@ export interface RoutesConfig<TRole extends string = DefaultRole> {
   params?: RoutesParam[];
   middlewares?: Handler[];
   mergeParams?: boolean;
+  postman?: import("./routing/PostmanGroup.js").default;
   module?: string;
   meta?: Record<string, unknown>;
 }

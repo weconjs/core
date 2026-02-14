@@ -54,10 +54,42 @@ export {
   Route,
   Routes,
   RoutesParam,
+  PostmanRoute,
+  PostmanGroup,
   RaiMatcher,
   ErrorCatcher,
 } from "./routing/index.js";
-export type { WeconDevConfig, RaiRoutesList } from "./routing/index.js";
+export type {
+  WeconDevConfig,
+  WeconPostmanConfig,
+  PostmanItem,
+  PostmanItemGroup,
+  RaiRoutesList,
+} from "./routing/index.js";
+
+// Postman Generator
+export { default as PostmanGenerator } from "./generators/PostmanGenerator.js";
+export type { PostmanGeneratorConfig } from "./generators/PostmanGenerator.js";
+
+// Postman Types
+export type {
+  PostmanDescription,
+  PostmanVersion,
+  PostmanInfo,
+  PostmanAuthAttribute,
+  PostmanAuthType,
+  PostmanAuth,
+  PostmanVariableType,
+  PostmanVariable,
+  PostmanVariableList,
+  PostmanScript,
+  PostmanEvent,
+  PostmanEventList,
+  PostmanProtocolProfileBehavior,
+  PostmanGroupConfig,
+  PostmanRouteConfig,
+  PostmanCollectionConfig,
+} from "./types/postman.types.js";
 
 // Errors
 export { ConfigError, RequestError } from "./errors/index.js";

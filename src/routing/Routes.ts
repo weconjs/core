@@ -9,6 +9,7 @@ import type {
 import RoutesParam from "./RoutesParam.js";
 import ErrorCatcher from "./ErrorCatcher.js";
 import errors from "../errors/index.js";
+import PostmanGroup from "./PostmanGroup.js";
 
 /**
  * Hierarchical route group with shared prefix, middleware, and params.
@@ -20,6 +21,7 @@ class Routes<TRole extends string = DefaultRole> extends ErrorCatcher {
   params?: RoutesParam[];
   middlewares?: Handler[];
   mergeParams?: boolean = false;
+  postman?: PostmanGroup;
   meta?: Record<string, unknown>;
 
   constructor(r: RoutesConfig<TRole>) {
@@ -30,6 +32,7 @@ class Routes<TRole extends string = DefaultRole> extends ErrorCatcher {
     this.params = r.params ? r.params : [];
     this.middlewares = r.middlewares ? r.middlewares : [];
     this.mergeParams = r.mergeParams ? r.mergeParams : false;
+    this.postman = r.postman ? r.postman : new PostmanGroup({ folderName: "" });
     this.meta = r.meta;
 
     try {
