@@ -66,6 +66,13 @@ export interface DatabaseOptions {
   name?: string;
 
   /**
+   * Mongoose instance to use for the connection.
+   * If provided, this instance is used instead of dynamically importing mongoose.
+   * This ensures the same instance is shared between model definitions and the connection.
+   */
+  mongoose?: MongooseInstance;
+
+  /**
    * Mongoose connection options
    */
   options?: Record<string, unknown>;
@@ -91,6 +98,18 @@ export interface DatabaseOptions {
     delayMs?: number;
     backoffMultiplier?: number;
   };
+}
+
+/**
+ * Minimal Mongoose instance interface.
+ * Accepts the default export of the mongoose package.
+ */
+export interface MongooseInstance {
+  connect(uri: string, options?: Record<string, unknown>): Promise<unknown>;
+  disconnect(): Promise<void>;
+  plugin(fn: unknown, opts?: unknown): unknown;
+  set(key: string, value: unknown): unknown;
+  connection: { readyState: number };
 }
 
 /**
@@ -182,7 +201,7 @@ export async function createDatabaseConnection(
   options: DatabaseOptions
 ): Promise<DatabaseConnection> {
   let connected = false;
-  let mongooseInstance: typeof import("mongoose") | null = null;
+  let mongooseRef: MongooseInstance | null = null;
 
   // Resolve URI
   const uri = options.uri ?? (options.config ? buildMongoUri(options.config) : null);
@@ -203,21 +222,22 @@ export async function createDatabaseConnection(
 
   return {
     async connect() {
-      // Dynamic import mongoose
-      const mongoose = await import("mongoose");
-      mongooseInstance = mongoose;
+      // Use provided mongoose instance, or dynamically import as fallback
+      const mongoose: MongooseInstance = options.mongoose
+        ?? (await import("mongoose")).default;
+      mongooseRef = mongoose;
 
       // Register global plugins
       if (options.plugins?.length) {
         for (const { plugin, options: pluginOpts } of options.plugins) {
-          mongoose.default.plugin(plugin as any, pluginOpts);
+          mongoose.plugin(plugin as any, pluginOpts);
         }
         console.log(`[Wecon] Registered ${options.plugins.length} Mongoose plugin(s)`);
       }
 
       // Enable debug mode if requested
       if (options.debug) {
-        mongoose.default.set("debug", true);
+        mongoose.set("debug", true);
       }
 
       // Connect with retry logic
@@ -226,7 +246,7 @@ export async function createDatabaseConnection(
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-          await mongoose.default.connect(uri, options.options as any);
+          await mongoose.connect(uri, options.options as any);
           connected = true;
           return;
         } catch (err) {
@@ -250,8 +270,8 @@ export async function createDatabaseConnection(
     },
 
     async disconnect() {
-      if (connected && mongooseInstance) {
-        await mongooseInstance.default.disconnect();
+      if (connected && mongooseRef) {
+        await mongooseRef.disconnect();
         connected = false;
         console.log("[Wecon] Database disconnected");
       }
@@ -262,7 +282,7 @@ export async function createDatabaseConnection(
     },
 
     get mongoose() {
-      return mongooseInstance?.default;
+      return mongooseRef;
     },
   };
 }

@@ -111,6 +111,12 @@ export interface CreateWeconOptions {
     uri?: string;
 
     /**
+     * Mongoose instance to use. Ensures the same instance is shared
+     * between model definitions and the database connection.
+     */
+    mongoose?: import("../database/index.js").MongooseInstance;
+
+    /**
      * Mongoose plugins to register
      */
     plugins?: Array<{
@@ -474,6 +480,7 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
 
       db = await createDatabaseConnection({
         uri,
+        mongoose: options.database?.mongoose,
         plugins: options.database?.plugins,
         debug: config.database.debug,
       });

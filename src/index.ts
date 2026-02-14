@@ -85,6 +85,7 @@ export {
 export type {
   DatabaseOptions,
   DatabaseConnection,
+  MongooseInstance,
   MongoUriParts,
 } from "./database/index.js";
 
