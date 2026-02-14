@@ -150,10 +150,6 @@ export interface SocketConfig {
  * Feature flags configuration
  */
 export interface FeaturesConfig {
-  fieldShield?: {
-    enabled?: boolean;
-    strict?: boolean;
-  };
   i18n?: {
     enabled?: boolean;
     defaultLocale?: string;

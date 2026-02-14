@@ -115,7 +115,6 @@ export async function printBanner(options: BannerOptions): Promise<void> {
   // Features
   const features: string[] = [];
   if (i18nEnabled) features.push("i18n");
-  if (config.features?.fieldShield?.enabled) features.push("FieldShield");
   if (config.features?.swagger?.enabled) features.push("Swagger");
   if (config.features?.socket?.enabled) features.push("Socket.IO");
   if (features.length > 0) {

@@ -17,7 +17,6 @@
  *   modules: ['./modules/auth', './modules/users'],
  *   features: {
  *     socket: { enabled: true },
- *     fieldShield: { enabled: true, strict: true },
  *   },
  * });
  * ```
@@ -48,7 +47,6 @@ const DEFAULT_CONFIG: Partial<ResolvedConfig> = {
     enabled: false,
   },
   features: {
-    fieldShield: { enabled: false, strict: false },
     i18n: { enabled: true, defaultLocale: "en" },
     swagger: { enabled: false },
     socket: { enabled: false },

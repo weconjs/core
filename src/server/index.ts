@@ -120,16 +120,6 @@ export interface CreateWeconOptions {
   };
 
   /**
-   * Plugin options
-   */
-  plugins?: {
-    /**
-     * Enable FieldShield integration
-     */
-    fieldShield?: boolean | { strict?: boolean; debug?: boolean };
-  };
-
-  /**
    * i18n options
    */
   i18n?: {
@@ -481,18 +471,10 @@ export async function createWecon(options: CreateWeconOptions): Promise<WeconApp
   if (shouldConnectDb) {
     try {
       const uri = options.database?.uri ?? buildUriFromConfig(config.database);
-      const fieldShieldConfig = options.plugins?.fieldShield;
 
       db = await createDatabaseConnection({
         uri,
         plugins: options.database?.plugins,
-        fieldShield: fieldShieldConfig
-          ? {
-              enabled: true,
-              strict: typeof fieldShieldConfig === "object" ? fieldShieldConfig.strict : true,
-              debug: typeof fieldShieldConfig === "object" ? fieldShieldConfig.debug : false,
-            }
-          : undefined,
         debug: config.database.debug,
       });
 

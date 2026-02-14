@@ -4,7 +4,6 @@
  * Manages MongoDB/Mongoose database connections with:
  * - URI builder from config parts
  * - Global plugin registration
- * - FieldShield integration (optional)
  * - Retry logic with exponential backoff
  *
  * @example
@@ -23,7 +22,6 @@
  * const db = await createDatabaseConnection({
  *   uri,
  *   plugins: [myPlugin],
- *   fieldShield: { enabled: true, strict: true },
  * });
  *
  * await db.connect();
@@ -79,16 +77,6 @@ export interface DatabaseOptions {
     plugin: (schema: unknown, options?: unknown) => void;
     options?: unknown;
   }>;
-
-  /**
-   * FieldShield integration options
-   * If enabled, installs FieldShield before connecting
-   */
-  fieldShield?: {
-    enabled: boolean;
-    strict?: boolean;
-    debug?: boolean;
-  };
 
   /**
    * Enable debug logging for Mongoose
@@ -218,23 +206,6 @@ export async function createDatabaseConnection(
       // Dynamic import mongoose
       const mongoose = await import("mongoose");
       mongooseInstance = mongoose;
-
-      // Install FieldShield if enabled
-      if (options.fieldShield?.enabled) {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const fieldShieldModule = await import("@weconjs/mongoose-field-shield" as string) as any;
-          fieldShieldModule.installFieldShield(mongoose.default, {
-            strict: options.fieldShield.strict ?? true,
-            debug: options.fieldShield.debug ?? false,
-          });
-          // Silently installed - shown in startup banner
-        } catch {
-          console.warn(
-            "[Wecon] @weconjs/mongoose-field-shield not installed. Skipping FieldShield setup."
-          );
-        }
-      }
 
       // Register global plugins
       if (options.plugins?.length) {
