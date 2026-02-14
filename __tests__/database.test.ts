@@ -16,11 +16,6 @@ vi.mock("mongoose", () => ({
   },
 }));
 
-// Mock FieldShield (optional dependency)
-vi.mock("@weconjs/mongoose-field-shield", () => ({
-  installFieldShield: vi.fn(),
-}));
-
 import {
   createDatabaseConnection,
   buildMongoUri,
@@ -235,19 +230,6 @@ describe("Database Module", () => {
       await db.connect();
 
       expect(mongoose.default.set).toHaveBeenCalledWith("debug", true);
-    });
-
-    it("should install FieldShield when enabled", async () => {
-      const fieldShield = await import("@weconjs/mongoose-field-shield");
-
-      const db = await createDatabaseConnection({
-        uri: "mongodb://localhost/test",
-        fieldShield: { enabled: true, strict: true },
-      });
-
-      await db.connect();
-
-      expect(fieldShield.installFieldShield).toHaveBeenCalled();
     });
 
     it("should report not connected before connect is called", async () => {

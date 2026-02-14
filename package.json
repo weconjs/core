@@ -1,6 +1,6 @@
 {
   "name": "@weconjs/core",
-  "version": "1.2.11",
+  "version": "1.2.12",
   "description": "Wecon Framework Core - defineConfig, defineModule, and runtime utilities",
   "type": "module",
   "main": "./dist/index.js",
@@ -40,7 +40,6 @@
     "winston": "^3.18.0"
   },
   "peerDependencies": {
-    "@weconjs/mongoose-field-shield": "^1.0.0",
     "express": "^5.0.0",
     "mongoose": "^8.0.0",
     "socket.io": "^4.6.0",
@@ -55,9 +54,6 @@
       "optional": true
     },
     "winston-daily-rotate-file": {
-      "optional": true
-    },
-    "@weconjs/mongoose-field-shield": {
       "optional": true
     }
   },
